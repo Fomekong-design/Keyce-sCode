@@ -13,6 +13,41 @@
         PreviewKeyDown="Window_PreviewKeyDown">
 
     <Window.Resources>
+        <Style x:Key="ExplorerActionButton" TargetType="Button">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Margin" Value="1,0"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryText}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="ToolTipService.ShowDuration" Value="10000"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="Transparent"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{StaticResource HoverBackground}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{StaticResource SelectedBackground}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="ActivityButton" TargetType="Button">
             <Setter Property="Width" Value="48"/>
             <Setter Property="Height" Value="48"/>
@@ -231,9 +266,69 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Text="EXPLORER"
-                                   Style="{StaticResource PanelTitle}"
-                                   Margin="0,0,0,10"/>
+                        <DockPanel Margin="0,0,0,10">
+                            <TextBlock Text="EXPLORER"
+                                       Style="{StaticResource PanelTitle}"
+                                       VerticalAlignment="Center"
+                                       DockPanel.Dock="Left"/>
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        DockPanel.Dock="Right">
+                                <Button Style="{StaticResource ExplorerActionButton}"
+                                        ToolTip="New File"
+                                        Click="NewFile_Click">
+                                    <Viewbox Width="14" Height="14">
+                                        <Canvas Width="16" Height="16">
+                                            <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1"
+                                                  Data="M3,2 L10,2 L13,5 L13,14 L3,14 Z M10,2 L10,6 L13,6"/>
+                                            <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1"
+                                                  Data="M6.5,9.5 L11.5,9.5 M9,7 L9,12"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                                <Button Style="{StaticResource ExplorerActionButton}"
+                                        ToolTip="New Folder"
+                                        Click="NewFolder_Click">
+                                    <Viewbox Width="14" Height="14">
+                                        <Canvas Width="16" Height="16">
+                                            <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1"
+                                                  Data="M1.5,3.5 L6.5,3.5 L8,5.5 L14.5,5.5 L14.5,13 L1.5,13 Z"/>
+                                            <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1"
+                                                  Data="M8,7.5 L8,11.5 M6,9.5 L10,9.5"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                                <Button Style="{StaticResource ExplorerActionButton}"
+                                        ToolTip="Refresh Explorer"
+                                        Click="RefreshExplorer_Click">
+                                    <Viewbox Width="14" Height="14">
+                                        <Canvas Width="16" Height="16">
+                                            <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1"
+                                                  Data="M13.5,5.5 A6,6 0 1 0 13.5,10.5 M13.5,2.5 L13.5,5.5 L10.5,5.5"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                                <Button Style="{StaticResource ExplorerActionButton}"
+                                        ToolTip="Collapse Folders"
+                                        Click="CollapseFolders_Click">
+                                    <Viewbox Width="14" Height="14">
+                                        <Canvas Width="16" Height="16">
+                                            <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1"
+                                                  Data="M1.5,3 L8.5,3 M1.5,7 L8.5,7 M1.5,11 L8.5,11"/>
+                                            <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1"
+                                                  Data="M11,5 L13.5,7.5 L11,10"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                            </StackPanel>
+                        </DockPanel>
                         <TextBlock x:Name="WorkspaceLabel" Grid.Row="1"
                                    FontWeight="SemiBold"
                                    TextTrimming="CharacterEllipsis"

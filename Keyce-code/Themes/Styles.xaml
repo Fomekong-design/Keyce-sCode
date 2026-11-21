@@ -93,6 +93,7 @@
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding" Value="0"/>
+        <Setter Property="TabStripPlacement" Value="Top"/>
     </Style>
 
     <Style TargetType="TabItem">
@@ -100,7 +101,8 @@
         <Setter Property="Background" Value="{StaticResource TabBackground}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,1,0"/>
-        <Setter Property="MinWidth" Value="120"/>
+        <Setter Property="MinWidth" Value="150"/>
+        <Setter Property="MaxWidth" Value="220"/>
         <Setter Property="Height" Value="35"/>
         <Setter Property="Padding" Value="0"/>
         <Setter Property="Template">

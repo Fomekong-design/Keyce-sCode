@@ -172,6 +172,220 @@ public partial class MainWindow : Window
         }
     }
 
+    private void NewFile_Click(object sender, RoutedEventArgs e)
+    {
+        string? name = ShowNameDialog("New File", "File name:");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        string targetDirectory = GetTargetDirectory();
+        string filePath = GetAvailablePath(targetDirectory, name.Trim(), isDirectory: false);
+
+        try
+        {
+            File.WriteAllText(filePath, string.Empty);
+            LoadExplorer();
+            OpenDocument(filePath);
+            StatusText.Text = $"Created {filePath}";
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Unable to Create File",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Unable to Create File",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void NewFolder_Click(object sender, RoutedEventArgs e)
+    {
+        string? name = ShowNameDialog("New Folder", "Folder name:");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        string targetDirectory = GetTargetDirectory();
+        string folderPath = GetAvailablePath(targetDirectory, name.Trim(), isDirectory: true);
+
+        try
+        {
+            Directory.CreateDirectory(folderPath);
+            LoadExplorer();
+            StatusText.Text = $"Created {folderPath}";
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Unable to Create Folder",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Unable to Create Folder",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void RefreshExplorer_Click(object sender, RoutedEventArgs e)
+    {
+        LoadExplorer();
+        StatusText.Text = "Explorer refreshed.";
+    }
+
+    private void CollapseFolders_Click(object sender, RoutedEventArgs e)
+    {
+        CollapseFolders(ExplorerTree);
+        StatusText.Text = "All folders collapsed.";
+    }
+
+    private string GetTargetDirectory()
+    {
+        if (ExplorerTree.SelectedItem is TreeViewItem selectedItem &&
+            selectedItem.Tag is string selectedPath)
+        {
+            if (Directory.Exists(selectedPath))
+            {
+                return selectedPath;
+            }
+
+            if (File.Exists(selectedPath))
+            {
+                return Path.GetDirectoryName(selectedPath) ?? _workspacePath;
+            }
+        }
+
+        return _workspacePath;
+    }
+
+    private static string GetAvailablePath(string directory, string name, bool isDirectory)
+    {
+        string basePath = Path.Combine(directory, name);
+        if (!(isDirectory ? Directory.Exists(basePath) : File.Exists(basePath)))
+        {
+            return basePath;
+        }
+
+        string stem = Path.GetFileNameWithoutExtension(name);
+        string extension = isDirectory ? string.Empty : Path.GetExtension(name);
+        int counter = 2;
+        string candidate;
+
+        do
+        {
+            candidate = Path.Combine(directory, $"{stem} {counter}{extension}");
+            counter++;
+        }
+        while (isDirectory ? Directory.Exists(candidate) : File.Exists(candidate));
+
+        return candidate;
+    }
+
+    private static void CollapseFolders(ItemsControl items)
+    {
+        foreach (object item in items.Items)
+        {
+            if (item is not TreeViewItem treeItem)
+            {
+                continue;
+            }
+
+            treeItem.IsExpanded = false;
+            CollapseFolders(treeItem);
+        }
+    }
+
+    private string? ShowNameDialog(string title, string prompt)
+    {
+        var dialog = new Window
+        {
+            Title = title,
+            Owner = this,
+            Width = 420,
+            Height = 150,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = (Brush)FindResource("AppBackground"),
+            BorderBrush = (Brush)FindResource("StrongBorderBrush"),
+            BorderThickness = new Thickness(1),
+            WindowStyle = WindowStyle.ToolWindow
+        };
+
+        var grid = new Grid
+        {
+            Margin = new Thickness(16)
+        };
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var promptText = new TextBlock
+        {
+            Text = prompt,
+            Margin = new Thickness(0, 0, 0, 7)
+        };
+        var input = new TextBox
+        {
+            Height = 28,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        var cancel = new Button
+        {
+            Content = "Cancel",
+            Width = 82,
+            Margin = new Thickness(0, 0, 8, 0),
+            Background = (Brush)FindResource("HoverBackground"),
+            BorderBrush = (Brush)FindResource("StrongBorderBrush")
+        };
+        var create = new Button
+        {
+            Content = "Create",
+            Width = 82,
+            IsDefault = true
+        };
+
+        buttons.Children.Add(cancel);
+        buttons.Children.Add(create);
+
+        Grid.SetRow(promptText, 0);
+        Grid.SetRow(input, 1);
+        Grid.SetRow(buttons, 2);
+        grid.Children.Add(promptText);
+        grid.Children.Add(input);
+        grid.Children.Add(buttons);
+        dialog.Content = grid;
+
+        cancel.Click += (_, _) =>
+        {
+            dialog.DialogResult = false;
+        };
+        create.Click += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(input.Text))
+            {
+                dialog.DialogResult = true;
+            }
+        };
+
+        dialog.Loaded += (_, _) =>
+        {
+            input.Focus();
+            input.SelectAll();
+        };
+
+        return dialog.ShowDialog() == true ? input.Text : null;
+    }
+
     private void SearchButton_Click(object sender, RoutedEventArgs e)
     {
         SearchFiles();
@@ -292,24 +506,33 @@ public partial class MainWindow : Window
             {
                 Text = Path.GetFileName(fullPath),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 4, 0)
+                Margin = new Thickness(10, 0, 6, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 165
             };
             var closeButton = new Button
             {
-                Content = "x",
-                Padding = new Thickness(5, 0, 5, 1),
-                Margin = new Thickness(3, 0, 4, 0),
+                Content = "\u00D7",
+                Width = 24,
+                Height = 24,
+                Padding = new Thickness(0),
+                Margin = new Thickness(0, 0, 4, 0),
                 Background = Brushes.Transparent,
                 Foreground = (Brush)FindResource("SecondaryText"),
                 BorderThickness = new Thickness(0),
+                FontSize = 15,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
                 ToolTip = "Close"
             };
-            var header = new StackPanel
+            var header = new DockPanel
             {
-                Orientation = Orientation.Horizontal
+                LastChildFill = true,
+                MinHeight = 35
             };
-            header.Children.Add(title);
+            DockPanel.SetDock(closeButton, Dock.Right);
             header.Children.Add(closeButton);
+            header.Children.Add(title);
 
             var tab = new TabItem
             {
