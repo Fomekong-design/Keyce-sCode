@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Keyce-code")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bcf34df68dc3e214430d2ca835b483835f113c11")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5a90754ae267a414aa56e59665d7e032b751781d")]
 [assembly: System.Reflection.AssemblyProductAttribute("Keyce-code")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Keyce-code")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -1,23 +1,498 @@
-﻿using System.Text;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using Microsoft.Win32;
 
 namespace Keyce_code;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
 public partial class MainWindow : Window
 {
+    private readonly Dictionary<string, EditorDocument> _documents =
+        new(StringComparer.OrdinalIgnoreCase);
+    private string _workspacePath;
+
     public MainWindow()
     {
         InitializeComponent();
+        _workspacePath = FindWorkspacePath();
+        LoadExplorer();
+    }
+
+    private void ActivityButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string panelName)
+        {
+            return;
+        }
+
+        ExplorerPanel.Visibility = panelName == "Explorer" ? Visibility.Visible : Visibility.Collapsed;
+        SearchPanel.Visibility = panelName == "Search" ? Visibility.Visible : Visibility.Collapsed;
+        SourceControlPanel.Visibility = panelName == "Source Control" ? Visibility.Visible : Visibility.Collapsed;
+        ExtensionsPanel.Visibility = panelName == "Extensions" ? Visibility.Visible : Visibility.Collapsed;
+
+        foreach (Button activityButton in ActivityBar.Children.OfType<Button>())
+        {
+            activityButton.Foreground = (Brush)FindResource("SecondaryText");
+        }
+
+        button.Foreground = (Brush)FindResource("AccentBrush");
+
+        if (panelName == "Source Control")
+        {
+            _ = RefreshSourceControlAsync();
+        }
+    }
+
+    private void LoadExplorer()
+    {
+        WorkspaceLabel.Text = Path.GetFileName(_workspacePath.TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrEmpty(WorkspaceLabel.Text))
+        {
+            WorkspaceLabel.Text = _workspacePath;
+        }
+
+        WorkspaceLabel.ToolTip = _workspacePath;
+        ExplorerTree.Items.Clear();
+
+        var root = CreateDirectoryNode(_workspacePath);
+        root.IsExpanded = true;
+        ExplorerTree.Items.Add(root);
+        PopulateDirectoryNode(root);
+    }
+
+    private static TreeViewItem CreateDirectoryNode(string path)
+    {
+        var node = new TreeViewItem
+        {
+            Header = Path.GetFileName(path.TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+            Tag = path
+        };
+        if (string.IsNullOrEmpty(node.Header as string))
+        {
+            node.Header = path;
+        }
+
+        node.Expanded += DirectoryNode_Expanded;
+        return node;
+    }
+
+    private static void DirectoryNode_Expanded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TreeViewItem node || node.Tag is not string path)
+        {
+            return;
+        }
+
+        if (node.Items.Count == 1 && node.Items[0] is TreeViewItem placeholder &&
+            placeholder.Tag is null)
+        {
+            node.Items.Clear();
+            PopulateDirectoryNode(node);
+        }
+    }
+
+    private static void PopulateDirectoryNode(TreeViewItem node)
+    {
+        if (node.Tag is not string path)
+        {
+            return;
+        }
+
+        node.Items.Clear();
+        try
+        {
+            foreach (string directory in Directory.EnumerateDirectories(path)
+                         .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+            {
+                var directoryNode = CreateDirectoryNode(directory);
+                directoryNode.Items.Add(new TreeViewItem());
+                node.Items.Add(directoryNode);
+            }
+
+            foreach (string file in Directory.EnumerateFiles(path)
+                         .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+            {
+                var fileNode = new TreeViewItem
+                {
+                    Header = Path.GetFileName(file),
+                    Tag = file
+                };
+                fileNode.MouseDoubleClick += FileNode_MouseDoubleClick;
+                node.Items.Add(fileNode);
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            node.Items.Add(new TreeViewItem
+            {
+                Header = "(Access denied)",
+                IsEnabled = false
+            });
+        }
+        catch (IOException)
+        {
+            node.Items.Add(new TreeViewItem
+            {
+                Header = "(Unable to read folder)",
+                IsEnabled = false
+            });
+        }
+    }
+
+    private static void FileNode_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is TreeViewItem { Tag: string path } && File.Exists(path))
+        {
+            if (Application.Current.MainWindow is MainWindow window)
+            {
+                window.OpenDocument(path);
+            }
+        }
+    }
+
+    private void OpenFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Open Workspace Folder",
+            InitialDirectory = _workspacePath
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            _workspacePath = dialog.FolderName;
+            LoadExplorer();
+            StatusText.Text = $"Workspace: {_workspacePath}";
+        }
+    }
+
+    private void SearchButton_Click(object sender, RoutedEventArgs e)
+    {
+        SearchFiles();
+    }
+
+    private void SearchBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SearchFiles();
+            e.Handled = true;
+        }
+    }
+
+    private void SearchFiles()
+    {
+        string query = SearchBox.Text.Trim();
+        SearchResults.Items.Clear();
+        if (query.Length == 0)
+        {
+            StatusText.Text = "Enter a file name to search.";
+            return;
+        }
+
+        int inaccessibleFolders = 0;
+        SearchDirectory(_workspacePath, query, inaccessibleFolders: ref inaccessibleFolders);
+        StatusText.Text = SearchResults.Items.Count == 0
+            ? $"No files matched \"{query}\"."
+            : $"{SearchResults.Items.Count} file(s) found.";
+        if (inaccessibleFolders > 0)
+        {
+            StatusText.Text += $" {inaccessibleFolders} folder(s) could not be searched.";
+        }
+    }
+
+    private void SearchDirectory(string directory, string query, ref int inaccessibleFolders)
+    {
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(directory))
+            {
+                if (Path.GetFileName(file).Contains(query, StringComparison.OrdinalIgnoreCase))
+                {
+                    SearchResults.Items.Add(file);
+                }
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            inaccessibleFolders++;
+            return;
+        }
+        catch (IOException)
+        {
+            inaccessibleFolders++;
+            return;
+        }
+
+        IEnumerable<string> subdirectories;
+        try
+        {
+            subdirectories = Directory.EnumerateDirectories(directory).ToArray();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            inaccessibleFolders++;
+            return;
+        }
+        catch (IOException)
+        {
+            inaccessibleFolders++;
+            return;
+        }
+
+        foreach (string subdirectory in subdirectories)
+        {
+            SearchDirectory(subdirectory, query, ref inaccessibleFolders);
+        }
+    }
+
+    private void SearchResults_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (SearchResults.SelectedItem is string path)
+        {
+            OpenDocument(path);
+        }
+    }
+
+    private void OpenDocument(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (_documents.TryGetValue(fullPath, out EditorDocument? existingDocument))
+        {
+            EditorTabs.SelectedItem = existingDocument.Tab;
+            return;
+        }
+
+        try
+        {
+            string content = File.ReadAllText(fullPath);
+            var editor = new TextBox
+            {
+                Text = content,
+                AcceptsReturn = true,
+                AcceptsTab = true,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 13,
+                Foreground = (Brush)FindResource("PrimaryText"),
+                Background = (Brush)FindResource("EditorBackground"),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(14),
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                TextWrapping = TextWrapping.NoWrap
+            };
+
+            var title = new TextBlock
+            {
+                Text = Path.GetFileName(fullPath),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 4, 0)
+            };
+            var closeButton = new Button
+            {
+                Content = "x",
+                Padding = new Thickness(5, 0, 5, 1),
+                Margin = new Thickness(3, 0, 4, 0),
+                Background = Brushes.Transparent,
+                Foreground = (Brush)FindResource("SecondaryText"),
+                BorderThickness = new Thickness(0),
+                ToolTip = "Close"
+            };
+            var header = new StackPanel
+            {
+                Orientation = Orientation.Horizontal
+            };
+            header.Children.Add(title);
+            header.Children.Add(closeButton);
+
+            var tab = new TabItem
+            {
+                Header = header,
+                Content = editor,
+                Tag = fullPath
+            };
+            var document = new EditorDocument(fullPath, tab, editor, title);
+            closeButton.Click += (_, _) => CloseDocument(document);
+            editor.TextChanged += (_, _) =>
+            {
+                document.IsDirty = true;
+                UpdateDocumentTitle(document);
+            };
+
+            _documents.Add(fullPath, document);
+            EditorTabs.Items.Add(tab);
+            EditorTabs.SelectedItem = tab;
+            StatusText.Text = fullPath;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Unable to Open File",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Unable to Open File",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void CloseDocument(EditorDocument document)
+    {
+        _documents.Remove(document.Path);
+        EditorTabs.Items.Remove(document.Tab);
+        if (EditorTabs.Items.Count == 0)
+        {
+            WelcomePanel.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void EditorTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ReferenceEquals(sender, EditorTabs))
+        {
+            WelcomePanel.Visibility = EditorTabs.Items.Count == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+    }
+
+    private void SaveDocument_Click(object sender, RoutedEventArgs e)
+    {
+        SaveCurrentDocument();
+    }
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S)
+        {
+            SaveCurrentDocument();
+            e.Handled = true;
+        }
+    }
+
+    private void SaveCurrentDocument()
+    {
+        if (EditorTabs.SelectedItem is not TabItem tab ||
+            tab.Tag is not string path ||
+            !_documents.TryGetValue(path, out EditorDocument? document))
+        {
+            return;
+        }
+
+        try
+        {
+            File.WriteAllText(path, document.Editor.Text);
+            document.IsDirty = false;
+            UpdateDocumentTitle(document);
+            StatusText.Text = $"Saved {path}";
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Unable to Save File",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Unable to Save File",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private static void UpdateDocumentTitle(EditorDocument document)
+    {
+        document.Title.Text = Path.GetFileName(document.Path) + (document.IsDirty ? " *" : string.Empty);
+    }
+
+    private async void RefreshSourceControl_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshSourceControlAsync();
+    }
+
+    private async Task RefreshSourceControlAsync()
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = _workspacePath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("status");
+        startInfo.ArgumentList.Add("--short");
+        startInfo.ArgumentList.Add("--branch");
+
+        try
+        {
+            using var process = new Process { StartInfo = startInfo };
+            if (!process.Start())
+            {
+                SourceControlOutput.Text = "Git could not be started.";
+                return;
+            }
+
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            string output = await outputTask;
+            string error = await errorTask;
+
+            SourceControlOutput.Text = process.ExitCode == 0
+                ? string.IsNullOrWhiteSpace(output) ? "No changes." : output
+                : string.IsNullOrWhiteSpace(error) ? "Git status failed." : error;
+        }
+        catch (Win32Exception ex)
+        {
+            SourceControlOutput.Text = $"Unable to run Git: {ex.Message}";
+        }
+    }
+
+    private static string FindWorkspacePath()
+    {
+        DirectoryInfo? directory = new(Environment.CurrentDirectory);
+        string fallback = directory.FullName;
+
+        while (directory is not null)
+        {
+            if (directory.GetFiles("*.csproj", SearchOption.TopDirectoryOnly).Length > 0)
+            {
+                return directory.FullName;
+            }
+
+            string projectSubdirectory = Path.Combine(directory.FullName, "Keyce-code");
+            if (Directory.Exists(projectSubdirectory) &&
+                Directory.GetFiles(projectSubdirectory, "*.csproj", SearchOption.TopDirectoryOnly).Length > 0)
+            {
+                return projectSubdirectory;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return fallback;
+    }
+
+    private sealed class EditorDocument
+    {
+        public EditorDocument(string path, TabItem tab, TextBox editor, TextBlock title)
+        {
+            Path = path;
+            Tab = tab;
+            Editor = editor;
+            Title = title;
+        }
+
+        public string Path { get; }
+        public TabItem Tab { get; }
+        public TextBox Editor { get; }
+        public TextBlock Title { get; }
+        public bool IsDirty { get; set; }
     }
 }
