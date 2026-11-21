@@ -34,11 +34,11 @@ Membres du projet : **Joycy**, **William**, **Apostel**, **Layelle**, **Travis**
 
 | Membre | Nom | Rôle | Projets possédés | Interfaces à implémenter | Préfixe de branche |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Membre 1** | `[Joycy / ...]` | Interface et éditeur | `KeycesCode.App`, `KeycesCode.Editor` | `IEditorService`, `ICommandRegistry` | `feature/m1-...` |
-| **Membre 2** | `[Layelle / ...]` | Fichiers et projets | `KeycesCode.Files`, `KeycesCode.Fakes`, `KeycesCode.Tests` | `IFileService`, `IDocumentManager`, `IWorkspaceService` | `feature/m2-...` |
-| **Membre 3** | `[Apostel / ...]` | Langages et assistant IA | `KeycesCode.Languages`, `KeycesCode.Assistant` | `ILanguageService`, `IAssistantService` | `feature/m3-...` |
+| **Membre 1** | **Travis** | Interface et éditeur | `KeycesCode.App`, `KeycesCode.Editor` | `IEditorService`, `ICommandRegistry` | `feature/m1-...` |
+| **Membre 2** | **Layelle** | Fichiers et projets | `KeycesCode.Files`, `KeycesCode.Fakes`, `KeycesCode.Tests` | `IFileService`, `IDocumentManager`, `IWorkspaceService` | `feature/m2-...` |
+| **Membre 3** | **Apostel** | Langages et assistant IA | `KeycesCode.Languages`, `KeycesCode.Assistant` | `ILanguageService`, `IAssistantService` | `feature/m3-...` |
 | **Membre 4** | **William** | Exécution et débogage | `KeycesCode.Execution` | `IToolDetectionService`, `IRunService`, `ITerminalService` | `feature/m4-...` |
-| **Membre 5** | `[Travis / ...]` | Personnalisation, GitHub et distribution | `KeycesCode.Settings`, `installer/`, `docs/` | `ISettingsService`, `IThemeService`, `IGitService` | `feature/m5-...` |
+| **Membre 5** | **Joycy** | Personnalisation, GitHub et distribution | `KeycesCode.Settings`, `installer/`, `docs/` | `ISettingsService`, `IThemeService`, `IGitService` | `feature/m5-...` |
 
 ---
 
